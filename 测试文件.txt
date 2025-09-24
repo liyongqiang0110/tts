@@ -24,4 +24,4 @@ CUDA_VISIBLE_DEVICES=1 python -m vllm.entrypoints.openai.api_server \
     --cpu-offload-gb 40 \
     # 单批次最多同时处理 2 个推理请求（限制并发）
     --max-num-seqs 1 \
-test分支内容
+master分支内容
