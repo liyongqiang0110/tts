@@ -1,0 +1,27 @@
+# 使用 GPU 0 和 GPU 1
+CUDA_VISIBLE_DEVICES=1 python -m vllm.entrypoints.openai.api_server \
+    # 指定模型路径（本地的 Qwen3 32B AWQ 量化模型）
+    --model /opt/model/Qwen3-32B-AWQ/ \
+    # 指定自定义的 Chat 模板，控制 prompt 格式（此模板可能屏蔽了“思考步骤”）
+    --chat-template /opt/model/Qwen3-32B-AWQ/qwen3_no_thinking.jinja \
+    # 自动选择数据类型（通常会优先使用 fp16 或 bf16）
+    --dtype auto \
+    # 启动 API Server，监听所有 IP（支持外网访问）
+    --host 0.0.0.0 \
+    # API Server 端口号
+    --port 8080 \
+    # 每张 GPU 最多使用 90% 的显存，预留部分显存防止溢出
+    --gpu-memory-utilization 0.90 \
+    # 捕获的最大序列长度（监控用，通常为最大支持上下文）
+    --max-seq-len-to-capture 4096 \
+    # 支持的最大模型上下文长度（包含输入 + 输出的 token 总长度）
+    --max-model-len 4096 \
+    # 启用 2 路张量并行，双卡并行计算（每卡分担一部分模型参数）
+    --tensor-parallel-size 1 \
+    # 设置 API Key，接口访问权限校验
+    --api-key token-abc123456 \
+    # 允许最多 40GB 的模型参数卸载到 CPU 内存，降低 GPU 显存压力
+    --cpu-offload-gb 40 \
+    # 单批次最多同时处理 2 个推理请求（限制并发）
+    --max-num-seqs 1 \
+test分支内容
