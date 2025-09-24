@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>流式TTS客户端</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input[type="number"], input[type="text"] {
+            padding: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="number"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #667eea;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 25px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #495057;
+            border: 2px solid #e1e5e9;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .progress-container {
+            margin-bottom: 30px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e1e5e9;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .chunk-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: slideIn 0.5s ease forwards;
+        }
+
+        @keyframes slideIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chunk-info {
+            flex: 1;
+        }
+
+        .chunk-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .chunk-text {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .chunk-meta {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .chunk-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .play-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .play-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+
+        .status-processing {
+            background: #ffc107;
+            animation: pulse 2s infinite;
+        }
+
+        .status-completed {
+            background: #28a745;
+        }
+
+        .status-error {
+            background: #dc3545;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .audio-controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .global-play-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .log-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .log-line {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .log-error {
+            color: #ff6b6b;
+        }
+
+        .log-success {
+            color: #51cf66;
+        }
+
+        .log-info {
+            color: #74c0fc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 流式TTS客户端</h1>
+            <p>将长文本切分后流式处理并实时播放</p>
+        </div>
+
+        <form id="ttsForm">
+            <div class="form-group">
+                <label for="inputText">输入文本</label>
+                <textarea 
+                    id="inputText" 
+                    placeholder="请输入要转换的文本内容..."
+                    required
+                >"十四五"以来，作为我国对外开放的重要平台，综合保税区、保税物流园区等海关特殊监管区域以不到两万分之一的国土面积，贡献了全国五分之一的进出口总值。河南、四川、重庆等"不沿边、不靠海"的中西部省市，依托海关特殊监管区域，外贸增速迅猛，特殊区域进出口值占到本地外贸的一半以上。2024年，海关特殊监管区域进出口值较2020年增长超三成。</textarea>
+            </div>
+
+            <div class="settings">
+                <div class="setting-item">
+                    <label for="serverUrl">服务器地址</label>
+                    <input type="text" id="serverUrl" value="http://127.0.0.1:11996">
+                </div>
+                <div class="setting-item">
+                    <label for="chunkSize">切分大小</label>
+                    <input type="number" id="chunkSize" value="80" min="20" max="200">
+                </div>
+                <div class="setting-item">
+                    <label for="audioPath">音频样本路径</label>
+                    <input type="text" id="audioPath" value="/opt/notebook/data/TTS/index-tts-vllm-master/tests/sample_prompt.wav">
+                </div>
+                <div class="setting-item">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="sentenceSplit" checked>
+                        <label for="sentenceSplit">按句子切分</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary" id="startBtn">
+                    🚀 开始流式生成
+                </button>
+                <button type="button" class="btn btn-secondary" id="stopBtn" disabled>
+                    ⏹️ 停止处理
+                </button>
+                <button type="button" class="btn btn-secondary" id="clearBtn">
+                    🗑️ 清空结果
+                </button>
+            </div>
+        </form>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">准备中...</div>
+        </div>
+
+        <div class="results" id="results"></div>
+
+        <div class="log-container" id="logContainer">
+            <div class="log-line log-info">🚀 流式TTS客户端已就绪</div>
+        </div>
+    </div>
+
+    <div class="audio-controls" id="audioControls">
+        <button class="global-play-btn" id="globalPlayBtn">▶️</button>
+        <span id="audioStatus">准备播放</span>
+    </div>
+
+    <script>
+        class StreamingTTSClient {
+            constructor() {
+                this.isProcessing = false;
+                this.audioChunks = [];
+                this.currentPlayingIndex = -1;
+                this.audioQueue = [];
+                
+                this.initializeElements();
+                this.bindEvents();
+            }
+            
+            initializeElements() {
+                this.form = document.getElementById('ttsForm');
+                this.startBtn = document.getElementById('startBtn');
+                this.stopBtn = document.getElementById('stopBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+                this.progressContainer = document.getElementById('progressContainer');
+                this.progressFill = document.getElementById('progressFill');
+                this.progressText = document.getElementById('progressText');
+                this.results = document.getElementById('results');
+                this.logContainer = document.getElementById('logContainer');
+                this.audioControls = document.getElementById('audioControls');
+                this.globalPlayBtn = document.getElementById('globalPlayBtn');
+                this.audioStatus = document.getElementById('audioStatus');
+            }
+            
+            bindEvents() {
+                this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+                this.stopBtn.addEventListener('click', () => this.stopProcessing());
+                this.clearBtn.addEventListener('click', () => this.clearResults());
+                this.globalPlayBtn.addEventListener('click', () => this.playAllSequential());
+            }
+            
+            async handleSubmit(e) {
+                e.preventDefault();
+                
+                if (this.isProcessing) return;
+                
+                const formData = this.getFormData();
+                if (!this.validateForm(formData)) return;
+                
+                await this.processTextStreaming(formData);
+            }
+            
+            getFormData() {
+                return {
+                    text: document.getElementById('inputText').value.trim(),
+                    serverUrl: document.getElementById('serverUrl').value.trim(),
+                    chunkSize: parseInt(document.getElementById('chunkSize').value),
+                    audioPath: document.getElementById('audioPath').value.trim(),
+                    sentenceSplit: document.getElementById('sentenceSplit').checked
+                };
+            }
+            
+            validateForm(data) {
+                if (!data.text) {
+                    this.addLog('❌ 请输入要转换的文本', 'error');
+                    return false;
+                }
+                
+                if (!data.serverUrl) {
+                    this.addLog('❌ 请输入服务器地址', 'error');
+                    return false;
+                }
+                
+                if (!data.audioPath) {
+                    this.addLog('❌ 请输入音频样本路径', 'error');
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            async processTextStreaming(data) {
+                this.isProcessing = true;
+                this.updateButtonStates();
+                this.clearResults();
+                this.showProgress();
+                
+                this.addLog(`📝 开始处理文本 (${data.text.length} 字符)`, 'info');
+                
+                try {
+                    // 1. 切分文本
+                    const chunks = this.splitText(data.text, data.chunkSize, data.sentenceSplit);
+                    this.addLog(`✂️ 文本已切分为 ${chunks.length} 个片段`, 'success');
+                    
+                    // 2. 流式处理每个片段
+                    this.audioChunks = [];
+                    const totalChunks = chunks.length;
+                    
+                    for (let i = 0; i < chunks.length; i++) {
+                        if (!this.isProcessing) break; // 检查是否被停止
+                        
+                        const chunkText = chunks[i];
+                        this.addLog(`🎵 处理片段 ${i+1}/${totalChunks}: ${chunkText.substring(0, 30)}...`, 'info');
+                        
+                        // 添加chunk到界面
+                        const chunkElement = this.addChunkToUI(i, chunkText, totalChunks);
+                        this.updateChunkStatus(chunkElement, 'processing');
+                        
+                        try {
+                            // 发送TTS请求
+                            const startTime = Date.now();
+                            const audioData = await this.requestTTS(data.serverUrl, chunkText, [data.audioPath]);
+                            const endTime = Date.now();
+                            
+                            if (audioData) {
+                                const audioBlob = new Blob([audioData], { type: 'audio/wav' });
+                                const audioUrl = URL.createObjectURL(audioBlob);
+                                
+                                const chunkInfo = {
+                                    index: i,
+                                    text: chunkText,
+                                    audioBlob: audioBlob,
+                                    audioUrl: audioUrl,
+                                    size: audioData.byteLength,
+                                    processingTime: endTime - startTime
+                                };
+                                
+                                this.audioChunks.push(chunkInfo);
+                                this.updateChunkWithAudio(chunkElement, chunkInfo);
+                                this.updateChunkStatus(chunkElement, 'completed');
+                                
+                                this.addLog(`✅ 片段 ${i+1} 完成 (${audioData.byteLength} 字节, ${endTime - startTime}ms)`, 'success');
+                            } else {
+                                this.updateChunkStatus(chunkElement, 'error');
+                                this.addLog(`❌ 片段 ${i+1} 处理失败`, 'error');
+                            }
+                        } catch (error) {
+                            this.updateChunkStatus(chunkElement, 'error');
+                            this.addLog(`❌ 片段 ${i+1} 错误: ${error.message}`, 'error');
+                        }
+                        
+                        // 更新进度
+                        this.updateProgress((i + 1) / totalChunks * 100, `${i + 1}/${totalChunks}`);
+                        
+                        // 小延迟避免服务器压力
+                        await this.sleep(100);
+                    }
+                    
+                    if (this.isProcessing) {
+                        this.addLog(`🎉 流式处理完成！成功生成 ${this.audioChunks.length} 个音频片段`, 'success');
+                        this.showAudioControls();
+                    }
+                    
+                } catch (error) {
+                    this.addLog(`❌ 处理失败: ${error.message}`, 'error');
+                } finally {
+                    this.isProcessing = false;
+                    this.updateButtonStates();
+                    this.hideProgress();
+                }
+            }
+            
+            splitText(text, maxLength, sentenceSplit) {
+                if (sentenceSplit) {
+                    return this.splitBySentence(text, maxLength);
+                } else {
+                    return this.splitByLength(text, maxLength);
+                }
+            }
+            
+            splitBySentence(text, maxLength) {
+                const sentenceEndings = /[。！？；\n]+/;
+                const sentences = text.split(sentenceEndings).filter(s => s.trim());
+                
+                const chunks = [];
+                let currentChunk = "";
+                
+                for (const sentence of sentences) {
+                    if (sentence.length > maxLength) {
+                        if (currentChunk) {
+                            chunks.push(currentChunk.trim());
+                            currentChunk = "";
+                        }
+                        chunks.push(...this.splitByLength(sentence, maxLength));
+                    } else {
+                        if (currentChunk.length + sentence.length + 1 <= maxLength) {
+                            currentChunk += sentence;
+                        } else {
+                            if (currentChunk) chunks.push(currentChunk.trim());
+                            currentChunk = sentence;
+                        }
+                    }
+                }
+                
+                if (currentChunk) chunks.push(currentChunk.trim());
+                return chunks.filter(chunk => chunk);
+            }
+            
+            splitByLength(text, maxLength) {
+                const chunks = [];
+                for (let i = 0; i < text.length; i += maxLength) {
+                    const chunk = text.substring(i, i + maxLength).trim();
+                    if (chunk) chunks.push(chunk);
+                }
+                return chunks;
+            }
+            
+            async requestTTS(serverUrl, text, audioPaths) {
+                const response = await fetch(`${serverUrl}/tts_url`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        audio_paths: audioPaths
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                return await response.arrayBuffer();
+            }
+            
+            addChunkToUI(index, text, total) {
+                const chunkElement = document.createElement('div');
+                chunkElement.className = 'chunk-item';
+                chunkElement.innerHTML = `
+                    <div class="chunk-info">
+                        <div class="chunk-title">片段 ${index + 1}/${total}</div>
+                        <div class="chunk-text">${text}</div>
+                        <div class="chunk-meta">处理中...</div>
+                    </div>
+                    <div class="chunk-controls">
+                        <div class="status-indicator status-processing"></div>
+                    </div>
+                `;
+                
+                this.results.appendChild(chunkElement);
+                return chunkElement;
+            }
+            
+            updateChunkWithAudio(chunkElement, chunkInfo) {
+                const controls = chunkElement.querySelector('.chunk-controls');
+                const meta = chunkElement.querySelector('.chunk-meta');
+                
+                meta.textContent = `${chunkInfo.size} 字节 | ${chunkInfo.processingTime}ms`;
+                
+                const playBtn = document.createElement('button');
+                playBtn.className = 'play-btn';
+                playBtn.innerHTML = '▶️';
+                playBtn.onclick = () => this.playAudio(chunkInfo);
+                
+                controls.insertBefore(playBtn, controls.firstChild);
+            }
+            
+            updateChunkStatus(chunkElement, status) {
+                const indicator = chunkElement.querySelector('.status-indicator');
+                indicator.className = `status-indicator status-${status}`;
+            }
+            
+            playAudio(chunkInfo) {
+                const audio = new Audio(chunkInfo.audioUrl);
+                audio.play().catch(e => {
+                    this.addLog(`❌ 播放失败: ${e.message}`, 'error');
+                });
+                
+                this.addLog(`🔊 播放片段 ${chunkInfo.index + 1}`, 'info');
+            }
+            
+            async playAllSequential() {
+                if (this.audioChunks.length === 0) {
+                    this.addLog('❌ 没有可播放的音频', 'error');
+                    return;
+                }
+                
+                this.addLog(`🎵 开始顺序播放 ${this.audioChunks.length} 个片段`, 'info');
+                this.globalPlayBtn.innerHTML = '⏸️';
+                this.audioStatus.textContent = '播放中...';
+                
+                // 按索引排序
+                const sortedChunks = [...this.audioChunks].sort((a, b) => a.index - b.index);
+                
+                for (let i = 0; i < sortedChunks.length; i++) {
+                    const chunk = sortedChunks[i];
+                    this.audioStatus.textContent = `播放片段 ${i + 1}/${sortedChunks.length}`;
+                    
+                    try {
+                        await this.playAudioPromise(chunk.audioUrl);
+                        await this.sleep(200); // 片段间隔
+                    } catch (error) {
+                        this.addLog(`❌ 播放片段 ${chunk.index + 1} 失败: ${error.message}`, 'error');
+                    }
+                }
+                
+                this.globalPlayBtn.innerHTML = '▶️';
+                this.audioStatus.textContent = '播放完成';
+                this.addLog('🎉 所有片段播放完成', 'success');
+            }
+            
+            playAudioPromise(audioUrl) {
+                return new Promise((resolve, reject) => {
+                    const audio = new Audio(audioUrl);
+                    audio.onended = resolve;
+                    audio.onerror = reject;
+                    audio.play().catch(reject);
+                });
+            }
+            
+            stopProcessing() {
+                this.isProcessing = false;
+                this.addLog('⏹️ 处理已停止', 'info');
+                this.updateButtonStates();
+                this.hideProgress();
+            }
+            
+            clearResults() {
+                this.results.innerHTML = '';
+                this.audioChunks = [];
+                this.hideAudioControls();
+                this.addLog('🗑️ 结果已清空', 'info');
+            }
+            
+            updateButtonStates() {
+                this.startBtn.disabled = this.isProcessing;
+                this.stopBtn.disabled = !this.isProcessing;
+                
+                if (this.isProcessing) {
+                    this.startBtn.innerHTML = '⏳ 处理中...';
+                } else {
+                    this.startBtn.innerHTML = '🚀 开始流式生成';
+                }
+            }
+            
+            showProgress() {
+                this.progressContainer.style.display = 'block';
+                this.updateProgress(0, '准备中...');
+            }
+            
+            hideProgress() {
+                this.progressContainer.style.display = 'none';
+            }
+            
+            updateProgress(percentage, text) {
+                this.progressFill.style.width = `${percentage}%`;
+                this.progressText.textContent = text;
+            }
+            
+            showAudioControls() {
+                this.audioControls.style.display = 'flex';
+            }
+            
+            hideAudioControls() {
+                this.audioControls.style.display = 'none';
+            }
+            
+            addLog(message, type = 'info') {
+                const logLine = document.createElement('div');
+                logLine.className = `log-line log-${type}`;
+                logLine.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+                
+                this.logContainer.appendChild(logLine);
+                this.logContainer.scrollTop = this.logContainer.scrollHeight;
+                
+                // 显示日志容器
+                this.logContainer.style.display = 'block';
+                
+                console.log(message);
+            }
+            
+            sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+        
+        // 初始化客户端
+        document.addEventListener('DOMContentLoaded', () => {
+            new StreamingTTSClient();
+        });
+    </script>
+</body>
+</html>

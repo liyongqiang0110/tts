@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时流式TTS音频生成与播放</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-panel {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .config-section {
+            padding: 25px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .config-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .config-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .config-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .config-group input, .config-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .config-group input:focus, .config-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-section {
+            padding: 25px;
+        }
+
+        .textarea-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        #textInput {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        #textInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .char-count {
+            position: absolute;
+            bottom: 10px;
+            right: 15px;
+            color: #6c757d;
+            font-size: 12px;
+            background: rgba(255,255,255,0.9);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status-section {
+            padding: 25px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .status-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .progress-container {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 10px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .chunks-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+        }
+
+        .chunk-item {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            transition: background-color 0.3s;
+        }
+
+        .chunk-item:last-child {
+            border-bottom: none;
+        }
+
+        .chunk-item.processing {
+            background-color: #fff3cd;
+        }
+
+        .chunk-item.completed {
+            background-color: #d4edda;
+        }
+
+        .chunk-item.error {
+            background-color: #f8d7da;
+        }
+
+        .chunk-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .chunk-index {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .chunk-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .chunk-status.processing {
+            background: #ffc107;
+            color: #856404;
+        }
+
+        .chunk-status.completed {
+            background: #28a745;
+            color: white;
+        }
+
+        .chunk-status.error {
+            background: #dc3545;
+            color: white;
+        }
+
+        .chunk-text {
+            color: #6c757d;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .chunk-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .chunk-info {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .play-btn {
+            padding: 6px 12px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .play-btn:hover:not(:disabled) {
+            background: #138496;
+        }
+
+        .play-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .global-audio-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 15px;
+        }
+
+        .queue-status {
+            background: rgba(0, 123, 255, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #007bff;
+            border: 1px solid rgba(0, 123, 255, 0.2);
+        }
+
+        .input-hint {
+            font-size: 11px;
+            color: #6c757d;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        .api-key-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0;
+        }
+
+        .api-key-toggle:hover {
+            color: #495057;
+        }
+
+        .config-group {
+            position: relative;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .volume-slider {
+            width: 100px;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .processing .chunk-status {
+            animation: pulse 1.5s infinite;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .config-row {
+                flex-direction: column;
+            }
+            
+            .control-buttons {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 实时流式TTS音频生成</h1>
+            <p>智能文本分割 · 实时音频生成 · 流式播放体验</p>
+        </div>
+
+        <div class="main-panel">
+            <!-- 配置区域 -->
+            <div class="config-section">
+                <div class="config-row">
+                    <div class="config-group">
+                        <label for="serverUrl">服务器地址</label>
+                        <input type="text" id="serverUrl" value="http://152.136.168.63:11996" placeholder="http://152.136.168.63:11996">
+                    </div>
+                    <div class="config-group">
+                        <label for="apiKey">API 密钥 🔐</label>
+                        <input type="password" id="apiKey" value="app-Tkgxa5UdOv1FXeBXyEsFQSi5" placeholder="请输入 API Key" required>
+                        <button type="button" class="api-key-toggle" id="toggleApiKey" title="显示/隐藏API密钥">👁️</button>
+                        <div class="input-hint">用于验证API访问权限的密钥</div>
+                    </div>
+                    <div class="config-group">
+                        <label for="audioPath">音频样本选择</label>
+                        <select id="audioPath">
+                            <option value="1_oral5.wav">1_oral5.wav</option>
+                            <option value="2_oral5.wav">2_oral5.wav</option>
+                            <option value="3_oral5.wav">3_oral5.wav</option>
+                            <option value="4_oral5.wav">4_oral5.wav</option>
+                            <option value="5_oral5.wav">5_oral5.wav</option>
+                            <option value="6_oral5.wav">6_oral5.wav</option>
+                            <option value="7_oral5.wav">7_oral5.wav</option>
+                            <option value="8_oral5.wav">8_oral5.wav</option>
+                            <option value="9_oral5.wav">9_oral5.wav</option>
+                            <option value="10_oral5.wav">10_oral5.wav</option>
+                            <option value="11_oral5.wav">11_oral5.wav</option>
+                            <option value="12_oral5.wav">12_oral5.wav</option>
+                            <option value="13_oral5.wav">13_oral5.wav</option>
+                            <option value="14_oral5.wav">14_oral5.wav</option>
+                            <option value="15_oral5.wav">15_oral5.wav</option>
+                            <option value="16_oral5.wav">16_oral5.wav</option>
+                            <option value="17_oral5.wav">17_oral5.wav</option>
+                            <option value="18_oral5.wav">18_oral5.wav</option>
+                            <option value="19_oral5.wav">19_oral5.wav</option>
+                            <option value="20_oral5.wav">20_oral5.wav</option>
+                            <option value="44_1d5fadf24e00d759.wav">44_1d5fadf24e00d759.wav</option>
+                            <option value="jay_promptvn.wav">jay_promptvn.wav</option>
+                            <option value="sample_prompt.wav" selected>sample_prompt.wav</option>
+                            <option value="vo_card_klee_endOfGame_fail_01.wav">vo_card_klee_endOfGame_fail_01.wav</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="config-row">
+                    <div class="config-group">
+                        <label for="chunkSize">分块大小 <small style="color: #6c757d;">(已禁用，仅按标点分割)</small></label>
+                        <input type="number" id="chunkSize" value="100" min="20" max="500" disabled title="当前版本仅支持按标点符号分割文本">
+                    </div>
+                    <div class="config-group">
+                        <label for="seed">随机种子</label>
+                        <input type="number" id="seed" value="8" min="1" max="100">
+                    </div>
+                    <div class="config-group">
+                        <label for="customPunctuation">自定义分割符</label>
+                        <input type="text" id="customPunctuation" placeholder="例如: ：，。！？" title="支持多个标点符号，如输入'：，'表示遇到冒号或逗号都会分割。留空使用默认标点符号">
+                        <div class="input-hint">支持多标点符号，如"：，"表示遇到冒号或逗号都分割</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文本输入区域 -->
+            <div class="input-section">
+                <div class="textarea-container">
+                    <textarea 
+                        id="textInput" 
+                        placeholder="在这里输入要转换为语音的文本内容...&#10;&#10;支持中文和英文，系统会自动按标点符号分割文本并逐块生成音频。"
+                    ></textarea>
+                    <div class="char-count">
+                        字符数: <span id="charCount">0</span>
+                    </div>
+                </div>
+
+                <div class="control-buttons">
+                    <button class="btn btn-primary" id="startBtn">🚀 开始流式生成</button>
+                    <button class="btn btn-secondary" id="playAllBtn" disabled>🎵 播放全部</button>
+                    <button class="btn btn-secondary" id="pauseAllBtn" disabled>⏸️ 暂停播放</button>
+                    <button class="btn btn-secondary" id="downloadBtn" disabled>💾 下载合成音频</button>
+                    <button class="btn btn-danger" id="stopBtn" disabled>⏹️停止生成</button>
+                </div>
+            </div>
+
+            <!-- 状态显示区域 -->
+            <div class="status-section">
+                <div class="status-header">
+                    <div class="status-title">📊 生成状态</div>
+                    <div id="statusText">等待开始...</div>
+                </div>
+
+                <div class="progress-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+
+                <!-- 全局音频控制 -->
+                <div class="global-audio-controls">
+                    <div class="volume-control">
+                        <label for="volumeSlider">🔊 音量:</label>
+                        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="1" step="0.1" value="0.8">
+                        <span id="volumeValue">80%</span>
+                    </div>
+                    <label>
+                        <input type="checkbox" id="autoPlay" checked> 自动播放
+                    </label>
+                    <div class="queue-status" id="queueStatus" style="display: none;">
+                        队列: <span id="queueCount">0</span>
+                    </div>
+                </div>
+
+                <!-- 音频片段列表 -->
+                <div class="chunks-container" id="chunksContainer">
+                    <div style="padding: 40px; text-align: center; color: #6c757d;">
+                        🎵 音频片段将在这里显示
+                    </div>
+                </div>
+
+                <!-- 统计信息 -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalChunks">0</div>
+                        <div class="stat-label">总片段数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="completedChunks">0</div>
+                        <div class="stat-label">已完成</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalTime">0s</div>
+                        <div class="stat-label">总耗时</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalSize">0KB</div>
+                        <div class="stat-label">音频大小</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class StreamingTTSClient {
+            constructor() {
+                this.isStreaming = false;
+                this.eventSource = null;
+                this.audioChunks = [];
+                this.startTime = null;
+                this.totalSize = 0;
+                this.currentPlayingIndex = -1;
+                this.audioQueue = [];
+                this.playbackQueue = []; // 播放队列，存储等待播放的片段索引
+                this.isPlayingSequence = false; // 是否正在顺序播放
+                this.globalVolume = 0.8;
+                
+                this.initializeElements();
+                this.bindEvents();
+            }
+
+            initializeElements() {
+                // 配置元素
+                this.serverUrlInput = document.getElementById('serverUrl');
+                this.apiKeyInput = document.getElementById('apiKey');
+                this.audioPathInput = document.getElementById('audioPath');
+                this.chunkSizeInput = document.getElementById('chunkSize');
+                this.seedInput = document.getElementById('seed');
+                this.customPunctuationInput = document.getElementById('customPunctuation');
+                
+                // 文本输入
+                this.textInput = document.getElementById('textInput');
+                this.charCountSpan = document.getElementById('charCount');
+                
+                // 控制按钮
+                this.startBtn = document.getElementById('startBtn');
+                this.playAllBtn = document.getElementById('playAllBtn');
+                this.pauseAllBtn = document.getElementById('pauseAllBtn');
+                this.downloadBtn = document.getElementById('downloadBtn');
+                this.stopBtn = document.getElementById('stopBtn');
+                
+                // 状态显示
+                this.statusText = document.getElementById('statusText');
+                this.progressBar = document.getElementById('progressBar');
+                this.chunksContainer = document.getElementById('chunksContainer');
+                
+                // 统计信息
+                this.totalChunksSpan = document.getElementById('totalChunks');
+                this.completedChunksSpan = document.getElementById('completedChunks');
+                this.totalTimeSpan = document.getElementById('totalTime');
+                this.totalSizeSpan = document.getElementById('totalSize');
+                
+                // 音频控制
+                this.volumeSlider = document.getElementById('volumeSlider');
+                this.volumeValue = document.getElementById('volumeValue');
+                this.autoPlayCheckbox = document.getElementById('autoPlay');
+                this.queueStatus = document.getElementById('queueStatus');
+                this.queueCount = document.getElementById('queueCount');
+            }
+
+            bindEvents() {
+                // 文本输入字符计数
+                this.textInput.addEventListener('input', () => {
+                    this.charCountSpan.textContent = this.textInput.value.length;
+                });
+
+                // 控制按钮
+                this.startBtn.addEventListener('click', () => this.startStreaming());
+                this.playAllBtn.addEventListener('click', () => this.playAllChunks());
+                this.pauseAllBtn.addEventListener('click', () => this.pauseAllChunks());
+                this.downloadBtn.addEventListener('click', () => this.downloadMergedAudio());
+                this.stopBtn.addEventListener('click', () => this.stopStreaming());
+
+                // 音量控制
+                this.volumeSlider.addEventListener('input', () => {
+                    this.globalVolume = parseFloat(this.volumeSlider.value);
+                    this.volumeValue.textContent = Math.round(this.globalVolume * 100) + '%';
+                    
+                    // 更新所有音频元素的音量
+                    this.audioQueue.forEach(audio => {
+                        if (audio.audio) {
+                            audio.audio.volume = this.globalVolume;
+                        }
+                    });
+                });
+
+                // 初始化字符计数
+                this.charCountSpan.textContent = this.textInput.value.length;
+                
+                // API Key 显示/隐藏切换
+                const toggleApiKeyBtn = document.getElementById('toggleApiKey');
+                toggleApiKeyBtn.addEventListener('click', () => {
+                    const apiKeyInput = this.apiKeyInput;
+                    if (apiKeyInput.type === 'password') {
+                        apiKeyInput.type = 'text';
+                        toggleApiKeyBtn.textContent = '🙈'; // 隐藏图标
+                        toggleApiKeyBtn.title = '隐藏API密钥';
+                    } else {
+                        apiKeyInput.type = 'password';
+                        toggleApiKeyBtn.textContent = '👁️'; // 显示图标
+                        toggleApiKeyBtn.title = '显示API密钥';
+                    }
+                });
+            }
+
+            async startStreaming() {
+                const text = this.textInput.value.trim();
+                if (!text) {
+                    alert('请输入要转换的文本');
+                    return;
+                }
+
+                const serverUrl = this.serverUrlInput.value.trim();
+                const apiKey = this.apiKeyInput.value.trim();
+                const selectedAudioFile = this.audioPathInput.value.trim();
+                const audioPath = `/opt/notebook/data/TTS/index-tts-vllm-master/assets/${selectedAudioFile}`;
+                
+                if (!serverUrl || !selectedAudioFile || !apiKey) {
+                    alert('请填写服务器地址、API密钥并选择音频样本');
+                    return;
+                }
+
+                // 重置状态
+                this.resetState();
+                this.isStreaming = true;
+                this.startTime = Date.now();
+
+                // 更新UI状态
+                this.updateButtonStates(true);
+                this.statusText.textContent = '正在连接服务器...';
+
+                try {
+                    // 准备请求数据
+                    const requestData = {
+                        text: text,
+                        audio_paths: [audioPath],
+                        seed: parseInt(this.seedInput.value) || 8,
+                        custom_punctuation: this.customPunctuationInput.value.trim() || null
+                    };
+
+                    // 发起流式请求
+                    const response = await fetch(`${serverUrl}/tts_streaming`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': apiKey
+                        },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    // 处理流式响应
+                    await this.handleStreamResponse(response);
+
+                } catch (error) {
+                    console.error('流式请求失败:', error);
+                    let errorMessage = error.message;
+                    
+                    // 检查是否是API密钥错误
+                    if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+                        errorMessage = 'API密钥验证失败，请检查密钥是否正确 🔑';
+                    } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+                        errorMessage = 'API访问被拒绝，请检查权限设置 ⚠️';
+                    }
+                    
+                    this.statusText.textContent = `❌ 错误: ${errorMessage}`;
+                    this.updateButtonStates(false);
+                    this.isStreaming = false;
+                }
+            }
+
+            async handleStreamResponse(response) {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                try {
+                    while (this.isStreaming) {
+                        const { done, value } = await reader.read();
+                        
+                        if (done) {
+                            // 处理剩余缓冲区数据
+                            if (buffer.trim()) {
+                                await this.processSSEEvent(buffer.trim());
+                            }
+                            break;
+                        }
+
+                        // 解码数据块并添加到缓冲区
+                        buffer += decoder.decode(value, { stream: true });
+                        
+                        // 处理完整的SSE事件（以双换行符分割）
+                        while (buffer.includes('\n\n')) {
+                            const eventEnd = buffer.indexOf('\n\n');
+                            const eventData = buffer.substring(0, eventEnd);
+                            buffer = buffer.substring(eventEnd + 2);
+                            
+                            await this.processSSEEvent(eventData);
+                        }
+                    }
+                } finally {
+                    reader.releaseLock();
+                }
+            }
+
+            async processSSEEvent(eventData) {
+                const lines = eventData.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const jsonStr = line.slice(6).trim();
+                            if (jsonStr && jsonStr !== '') {
+                                const data = JSON.parse(jsonStr);
+                                await this.handleStreamEvent(data);
+                            }
+                        } catch (e) {
+                            console.warn('解析SSE事件失败:', e.message);
+                            console.log('Event data:', eventData.slice(0, 500) + '...');
+                        }
+                        break; // 每个事件只处理一个data行
+                    }
+                }
+            }
+
+            async handleStreamEvent(data) {
+                switch (data.type) {
+                    case 'start':
+                        this.handleStartEvent(data);
+                        break;
+                    case 'chunk_start':
+                        this.handleChunkStartEvent(data);
+                        break;
+                    case 'audio':
+                        await this.handleAudioEvent(data);
+                        break;
+                    case 'complete':
+                        this.handleCompleteEvent(data);
+                        break;
+                    case 'error':
+                        this.handleErrorEvent(data);
+                        break;
+                }
+            }
+
+            handleStartEvent(data) {
+                this.statusText.textContent = `开始生成 ${data.total_chunks} 个音频片段`;
+                this.totalChunksSpan.textContent = data.total_chunks;
+                
+                // 清空片段容器并创建片段元素
+                this.chunksContainer.innerHTML = '';
+                
+                // 重置播放状态和队列
+                this.currentPlayingIndex = -1;
+                this.isPlayingSequence = false;
+                this.playbackQueue = [];
+                
+                data.chunks.forEach((chunkText, index) => {
+                    this.createChunkElement(index, chunkText);
+                });
+            }
+
+            handleChunkStartEvent(data) {
+                this.statusText.textContent = `正在生成片段 ${data.chunk_index + 1}/${data.total_chunks}`;
+                this.updateChunkStatus(data.chunk_index, 'processing', '处理中');
+            }
+
+            async handleAudioEvent(data) {
+                const chunkIndex = data.chunk_index;
+                const audioB64 = data.data;
+                const processingTime = data.processing_time;
+                const size = data.size;
+
+                try {
+                    // 解码音频数据
+                    const audioBytes = this.base64ToArrayBuffer(audioB64);
+                    const audioBlob = new Blob([audioBytes], { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+
+                    // 创建音频元素
+                    const audio = new Audio(audioUrl);
+                    audio.volume = this.globalVolume;
+
+                    // 存储音频信息
+                    this.audioQueue[chunkIndex] = {
+                        audio: audio,
+                        blob: audioBlob,
+                        url: audioUrl,
+                        size: size,
+                        processingTime: processingTime
+                    };
+
+                    // 更新片段状态
+                    this.updateChunkStatus(chunkIndex, 'completed', '已完成');
+                    this.updateChunkInfo(chunkIndex, size, processingTime);
+
+                    // 更新统计信息
+                    this.totalSize += size;
+                    this.completedChunksSpan.textContent = parseInt(this.completedChunksSpan.textContent) + 1;
+                    this.totalSizeSpan.textContent = (this.totalSize / 1024).toFixed(1) + 'KB';
+
+                    // 更新进度
+                    const totalChunks = parseInt(this.totalChunksSpan.textContent);
+                    const completedChunks = parseInt(this.completedChunksSpan.textContent);
+                    const progress = (completedChunks / totalChunks) * 100;
+                    this.progressBar.style.width = progress + '%';
+
+                    // 自动播放队列管理
+                    if (this.autoPlayCheckbox.checked) {
+                        console.log(`[AutoPlay] 片段 ${chunkIndex} 生成完成，当前播放: ${this.currentPlayingIndex}, 播放序列: ${this.isPlayingSequence}, 队列: [${this.playbackQueue.join(',')}]`);
+                        this.handleAutoPlay(chunkIndex);
+                    }
+
+                } catch (error) {
+                    console.error('处理音频数据失败:', error);
+                    this.updateChunkStatus(chunkIndex, 'error', '错误');
+                }
+            }
+
+            handleCompleteEvent(data) {
+                this.statusText.textContent = `✅ 生成完成！共 ${data.total_chunks} 个片段`;
+                this.updateButtonStates(false);
+                this.playAllBtn.disabled = false;
+                this.downloadBtn.disabled = false; // 启用下载按钮
+                this.isStreaming = false;
+
+                // 更新总耗时
+                const totalTime = (Date.now() - this.startTime) / 1000;
+                this.totalTimeSpan.textContent = totalTime.toFixed(1) + 's';
+            }
+
+            handleErrorEvent(data) {
+                console.error('音频生成错误:', data);
+                this.updateChunkStatus(data.chunk_index, 'error', '错误');
+                this.statusText.textContent = `❌ 片段 ${data.chunk_index + 1} 生成失败`;
+            }
+
+            createChunkElement(index, text) {
+                const chunkDiv = document.createElement('div');
+                chunkDiv.className = 'chunk-item';
+                chunkDiv.id = `chunk-${index}`;
+
+                chunkDiv.innerHTML = `
+                    <div class="chunk-header">
+                        <div class="chunk-index">片段 ${index + 1}</div>
+                        <div class="chunk-status" id="status-${index}">等待中</div>
+                    </div>
+                    <div class="chunk-text">${text}</div>
+                    <div class="chunk-controls">
+                        <button class="play-btn" id="play-${index}" onclick="client.playChunk(${index})" disabled>
+                            ▶️ 播放
+                        </button>
+                        <div class="chunk-info" id="info-${index}">-</div>
+                    </div>
+                `;
+
+                this.chunksContainer.appendChild(chunkDiv);
+            }
+
+            updateChunkStatus(index, status, text) {
+                const chunkElement = document.getElementById(`chunk-${index}`);
+                const statusElement = document.getElementById(`status-${index}`);
+
+                if (chunkElement && statusElement) {
+                    // 更新类名
+                    chunkElement.className = `chunk-item ${status}`;
+                    statusElement.className = `chunk-status ${status}`;
+                    statusElement.textContent = text;
+
+                    // 如果完成，启用播放按钮
+                    if (status === 'completed') {
+                        const playBtn = document.getElementById(`play-${index}`);
+                        if (playBtn) {
+                            playBtn.disabled = false;
+                        }
+                    }
+                }
+            }
+
+            updateChunkInfo(index, size, processingTime) {
+                const infoElement = document.getElementById(`info-${index}`);
+                if (infoElement) {
+                    infoElement.textContent = `${(size / 1024).toFixed(1)}KB · ${processingTime.toFixed(2)}s`;
+                }
+            }
+
+            playChunk(index) {
+                const audioInfo = this.audioQueue[index];
+                if (!audioInfo || !audioInfo.audio) {
+                    return;
+                }
+
+                // 停止其他正在播放的音频（但不重置播放状态）
+                this.pauseAllAudioOnly();
+
+                // 播放当前音频
+                this.currentPlayingIndex = index;
+                
+                // 清理之前的事件监听器，避免重复绑定
+                audioInfo.audio.onended = null;
+                
+                // 重新绑定播放结束事件
+                audioInfo.audio.onended = () => {
+                    this.onChunkPlaybackComplete();
+                };
+                
+                audioInfo.audio.play().catch(error => {
+                    console.error('播放音频失败:', error);
+                    this.onChunkPlaybackComplete();
+                });
+            }
+
+            // 处理音频播放完成
+            onChunkPlaybackComplete() {
+                console.log(`[AutoPlay] 播放完成，队列长度: ${this.playbackQueue.length}, 是否流式生成: ${this.isStreaming}`);
+                this.currentPlayingIndex = -1;
+                
+                // 如果启用了自动播放且正在顺序播放
+                if (this.isPlayingSequence && this.autoPlayCheckbox.checked) {
+                    if (this.playbackQueue.length > 0) {
+                        // 播放队列中的下一个片段
+                        const nextIndex = this.getNextChunkToPlay();
+                        if (nextIndex !== -1) {
+                            console.log(`[AutoPlay] 继续播放队列中的片段 ${nextIndex}，当前队列: [${this.playbackQueue.join(',')}]`);
+                            const indexInQueue = this.playbackQueue.indexOf(nextIndex);
+                            console.log(`[AutoPlay] 从队列中移除片段 ${nextIndex}，位置: ${indexInQueue}`);
+                            this.playbackQueue.splice(indexInQueue, 1);
+                            console.log(`[AutoPlay] 移除后队列: [${this.playbackQueue.join(',')}]`);
+                            this.updateQueueStatus();
+                            setTimeout(() => this.playChunk(nextIndex), 100);
+                        }
+                    } else {
+                        // 队列为空，检查是否还有未生成的片段需要等待
+                        if (!this.isStreaming) {
+                            // 不在生成中，结束播放序列
+                            console.log(`[AutoPlay] 生成完成且队列为空，结束播放序列 🎉`);
+                            this.isPlayingSequence = false;
+                            this.updateQueueStatus();
+                        } else {
+                            // 还在生成中，保持播放序列状态，等待新的片段
+                            console.log(`[AutoPlay] 还在生成中，等待新片段 ⏳`);
+                            this.updateQueueStatus();
+                        }
+                    }
+                } else {
+                    // 不是自动播放模式或不在播放序列中
+                    this.isPlayingSequence = false;
+                    this.updateQueueStatus();
+                }
+            }
+
+            // 处理自动播放逻辑
+            handleAutoPlay(chunkIndex) {
+                console.log(`[AutoPlay] 处理片段 ${chunkIndex}，当前状态: 播放=${this.currentPlayingIndex}, 序列=${this.isPlayingSequence}`);
+                
+                if (this.currentPlayingIndex === -1 && !this.isPlayingSequence) {
+                    // 当前没有音频在播放且不在播放序列中，检查是否应该开始播放
+                    if (chunkIndex === 0 || !this.shouldWaitForEarlierChunks(chunkIndex)) {
+                        // 如果是第一个片段，或者前面的片段都已准备好/不存在，直接播放
+                        console.log(`[AutoPlay] 直接播放片段 ${chunkIndex}`);
+                        this.playChunk(chunkIndex);
+                        this.isPlayingSequence = true;
+                    } else {
+                        // 否则加入队列等待
+                        console.log(`[AutoPlay] 片段 ${chunkIndex} 需等待更早片段，加入队列`);
+                        this.addToPlaybackQueue(chunkIndex);
+                    }
+                } else {
+                    // 有音频在播放或正在播放序列中，加入播放队列
+                    console.log(`[AutoPlay] 片段 ${chunkIndex} 加入播放队列`);
+                    this.addToPlaybackQueue(chunkIndex);
+                    
+                    // 如果当前没有正在播放的音频，但有队列，尝试播放队列中的下一个
+                    if (this.currentPlayingIndex === -1 && this.playbackQueue.length > 0) {
+                        const nextIndex = this.getNextChunkToPlay();
+                        if (nextIndex !== -1) {
+                            console.log(`[AutoPlay] 从队列播放片段 ${nextIndex}`);
+                            this.playbackQueue.splice(this.playbackQueue.indexOf(nextIndex), 1);
+                            this.playChunk(nextIndex);
+                        }
+                    }
+                }
+            }
+
+            // 检查是否应该等待更早的片段
+            shouldWaitForEarlierChunks(chunkIndex) {
+                // 检查是否有更早的片段还没有生成完成
+                for (let i = 0; i < chunkIndex; i++) {
+                    // 如果某个更早的片段存在但还没有音频数据，需要等待
+                    const chunkElement = document.getElementById(`chunk-${i}`);
+                    if (chunkElement && !this.audioQueue[i]) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // 获取下一个应该播放的片段
+            getNextChunkToPlay() {
+                if (this.playbackQueue.length === 0) return -1;
+                
+                // 找到队列中最小的索引（最早的片段）
+                return Math.min(...this.playbackQueue);
+            }
+
+            // 添加到播放队列
+            addToPlaybackQueue(chunkIndex) {
+                if (!this.playbackQueue.includes(chunkIndex)) {
+                    // 按顺序插入队列，确保播放顺序正确
+                    let insertIndex = 0;
+                    while (insertIndex < this.playbackQueue.length && this.playbackQueue[insertIndex] < chunkIndex) {
+                        insertIndex++;
+                    }
+                    this.playbackQueue.splice(insertIndex, 0, chunkIndex);
+                    this.updateQueueStatus();
+                }
+            }
+
+            // 更新队列状态显示
+            updateQueueStatus() {
+                if (this.playbackQueue.length > 0) {
+                    this.queueStatus.style.display = 'block';
+                    this.queueCount.textContent = this.playbackQueue.length;
+                } else {
+                    this.queueStatus.style.display = 'none';
+                }
+            }
+
+            playAllChunks() {
+                if (this.audioQueue.length === 0) {
+                    return;
+                }
+
+                this.pauseAllChunks();
+                
+                // 重置播放队列
+                this.playbackQueue = [];
+                this.isPlayingSequence = true;
+                
+                // 构建完整的播放队列，从第二个开始（第一个会直接播放）
+                for (let i = 1; i < this.audioQueue.length; i++) {
+                    if (this.audioQueue[i]) {
+                        this.playbackQueue.push(i);
+                    }
+                }
+                
+                this.updateQueueStatus();
+                
+                // 开始播放第一个
+                if (this.audioQueue[0]) {
+                    this.playChunk(0);
+                } else {
+                    // 如果第一个片段不存在，从队列中播放第一个可用的
+                    if (this.playbackQueue.length > 0) {
+                        const firstIndex = this.playbackQueue.shift();
+                        this.updateQueueStatus();
+                        this.playChunk(firstIndex);
+                    }
+                }
+            }
+
+            // 只停止音频播放，不重置播放状态（用于切换音频时）
+            pauseAllAudioOnly() {
+                this.audioQueue.forEach((audioInfo, index) => {
+                    if (audioInfo && audioInfo.audio) {
+                        audioInfo.audio.pause();
+                        audioInfo.audio.currentTime = 0;
+                        // 清理事件监听器，避免播放完成事件触发
+                        audioInfo.audio.onended = null;
+                    }
+                });
+            }
+
+            // 停止所有音频并重置播放状态（用于完全停止播放）
+            pauseAllChunks() {
+                this.pauseAllAudioOnly();
+                
+                // 重置播放状态
+                this.currentPlayingIndex = -1;
+                this.isPlayingSequence = false;
+                this.playbackQueue = [];
+                this.updateQueueStatus();
+            }
+
+            stopStreaming() {
+                this.isStreaming = false;
+                this.statusText.textContent = '⏹️ 已停止生成';
+                this.updateButtonStates(false);
+                this.pauseAllChunks();
+            }
+
+            resetState() {
+                this.audioChunks = [];
+                this.audioQueue = [];
+                this.totalSize = 0;
+                this.currentPlayingIndex = -1;
+                
+                // 重置统计信息
+                this.totalChunksSpan.textContent = '0';
+                this.completedChunksSpan.textContent = '0';
+                this.totalTimeSpan.textContent = '0s';
+                this.totalSizeSpan.textContent = '0KB';
+                
+                // 重置进度条
+                this.progressBar.style.width = '0%';
+                
+                // 重置下载按钮
+                this.downloadBtn.disabled = true;
+                this.downloadBtn.textContent = '💾 下载合成音频';
+                
+                // 清空片段容器
+                this.chunksContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #6c757d;">🎵 音频片段将在这里显示</div>';
+            }
+
+            // 下载合并后的音频
+            async downloadMergedAudio() {
+                if (this.audioQueue.length === 0) {
+                    alert('没有可下载的音频片段');
+                    return;
+                }
+
+                try {
+                    this.downloadBtn.disabled = true;
+                    this.downloadBtn.textContent = '🔄 合并中...';
+                    
+                    // 获取所有有效的音频片段
+                    const validAudioChunks = [];
+                    for (let i = 0; i < this.audioQueue.length; i++) {
+                        if (this.audioQueue[i] && this.audioQueue[i].blob) {
+                            validAudioChunks.push(this.audioQueue[i].blob);
+                        }
+                    }
+
+                    if (validAudioChunks.length === 0) {
+                        alert('没有有效的音频片段可下载');
+                        return;
+                    }
+
+                    // 合并音频数据
+                    const mergedAudio = await this.mergeAudioBlobs(validAudioChunks);
+                    
+                    // 创建下载链接
+                    const url = URL.createObjectURL(mergedAudio);
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                    const filename = `tts_merged_audio_${timestamp}.wav`;
+                    
+                    // 触发下载
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = url;
+                    downloadLink.download = filename;
+                    downloadLink.style.display = 'none';
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    
+                    // 清理临时URL
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    
+                    this.statusText.textContent = `✅ 音频下载完成: ${filename}`;
+                    
+                } catch (error) {
+                    console.error('下载音频失败:', error);
+                    alert('下载音频时发生错误: ' + error.message);
+                } finally {
+                    this.downloadBtn.disabled = false;
+                    this.downloadBtn.textContent = '💾 下载合成音频';
+                }
+            }
+
+            // 合并多个音频Blob
+            async mergeAudioBlobs(audioBlobs) {
+                // 创建音频上下文
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffers = [];
+                
+                // 解码所有音频数据
+                for (const blob of audioBlobs) {
+                    try {
+                        const arrayBuffer = await blob.arrayBuffer();
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                        audioBuffers.push(audioBuffer);
+                    } catch (error) {
+                        console.warn('解码音频失败，跳过该片段:', error);
+                    }
+                }
+
+                if (audioBuffers.length === 0) {
+                    throw new Error('没有有效的音频数据可合并');
+                }
+
+                // 计算合并后的总长度
+                const totalLength = audioBuffers.reduce((sum, buffer) => sum + buffer.length, 0);
+                const sampleRate = audioBuffers[0].sampleRate;
+                const numberOfChannels = audioBuffers[0].numberOfChannels;
+
+                // 创建合并后的音频缓冲区
+                const mergedBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
+
+                // 合并音频数据
+                let offset = 0;
+                for (const buffer of audioBuffers) {
+                    for (let channel = 0; channel < numberOfChannels; channel++) {
+                        const channelData = buffer.getChannelData(channel);
+                        mergedBuffer.getChannelData(channel).set(channelData, offset);
+                    }
+                    offset += buffer.length;
+                }
+
+                // 将音频缓冲区转换为WAV格式的Blob
+                const wavBlob = this.audioBufferToWav(mergedBuffer);
+                
+                // 关闭音频上下文
+                await audioContext.close();
+                
+                return wavBlob;
+            }
+
+            // 将AudioBuffer转换为WAV格式的Blob
+            audioBufferToWav(buffer) {
+                const length = buffer.length;
+                const numberOfChannels = buffer.numberOfChannels;
+                const sampleRate = buffer.sampleRate;
+                const bytesPerSample = 2; // 16-bit
+                const blockAlign = numberOfChannels * bytesPerSample;
+                const byteRate = sampleRate * blockAlign;
+                const dataSize = length * blockAlign;
+                const bufferSize = 44 + dataSize;
+
+                const arrayBuffer = new ArrayBuffer(bufferSize);
+                const view = new DataView(arrayBuffer);
+
+                // WAV文件头
+                const writeString = (offset, string) => {
+                    for (let i = 0; i < string.length; i++) {
+                        view.setUint8(offset + i, string.charCodeAt(i));
+                    }
+                };
+
+                // RIFF标识符
+                writeString(0, 'RIFF');
+                view.setUint32(4, bufferSize - 8, true);
+                writeString(8, 'WAVE');
+
+                // fmt子块
+                writeString(12, 'fmt ');
+                view.setUint32(16, 16, true); // 子块大小
+                view.setUint16(20, 1, true); // 音频格式 (PCM)
+                view.setUint16(22, numberOfChannels, true);
+                view.setUint32(24, sampleRate, true);
+                view.setUint32(28, byteRate, true);
+                view.setUint16(32, blockAlign, true);
+                view.setUint16(34, 16, true); // 位深度
+
+                // data子块
+                writeString(36, 'data');
+                view.setUint32(40, dataSize, true);
+
+                // 音频数据
+                let offset = 44;
+                for (let i = 0; i < length; i++) {
+                    for (let channel = 0; channel < numberOfChannels; channel++) {
+                        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+                        const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                        view.setInt16(offset, intSample, true);
+                        offset += 2;
+                    }
+                }
+
+                return new Blob([arrayBuffer], { type: 'audio/wav' });
+            }
+
+            updateButtonStates(isStreaming) {
+                this.startBtn.disabled = isStreaming;
+                this.stopBtn.disabled = !isStreaming;
+                this.playAllBtn.disabled = isStreaming;
+                this.pauseAllBtn.disabled = isStreaming;
+                this.downloadBtn.disabled = isStreaming; // 生成过程中禁用下载
+            }
+
+            base64ToArrayBuffer(base64) {
+                const binaryString = window.atob(base64);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return bytes.buffer;
+            }
+        }
+
+        // 初始化客户端
+        const client = new StreamingTTSClient();
+
+        // 示例文本
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('textInput').value = `各位媒体朋友、市民代表：​
+大家上午好！今天，我们怀着欣喜的心情，向社会正式宣布我市智慧交通系统全面升级上线。这是我市落实 “智慧城市” 建设规划的关键一步，也是解决市民出行痛点、提升城市治理效能的重要举措。​
+此次升级历时 18 个月，由市交通局联合科技企业共同研发，整合了大数据、人工智能、5G 等前沿技术，形成 “一平台、多场景” 的服务体系。平台核心功能涵盖三大板块：一是实时路况智能预警，通过遍布城区的 500 余处智能监测设备，实时捕捉交通拥堵、事故等异常情况，10 秒内推送预警信息至周边车辆；二是公共交通精准调度，市民通过 “城市出行” APP，可查询公交、地铁的实时位置，预估到站时间误差缩小至 1 分钟内；三是停车资源高效利用，系统整合全市 2.3 万个公共停车位信息，支持在线预约、无感支付，有效缓解 “停车难” 问题。​
+试运行一个月以来，系统已覆盖主城区 80% 的交通路网，高峰时段道路通行效率提升 25%，公共交通准点率提高至 98%，市民满意度达 92%。下一步，我们将逐步拓展县域交通覆盖范围，计划年内新增 100 处智能过街设备、50 条定制公交路线，持续优化智慧交通服务体验。​
+交通是城市的 “血脉”，智慧交通系统的升级，既是提升城市竞争力的必然选择，更是为市民创造美好生活的具体实践。我们期待与社会各界共同监督、建言献策，让智慧交通真正成为便民、利民、惠民的民生工程！​
+谢谢大家！`;
+            
+            // 更新字符计数
+            client.charCountSpan.textContent = document.getElementById('textInput').value.length;
+        });
+    </script>
+</body>
+</html>
